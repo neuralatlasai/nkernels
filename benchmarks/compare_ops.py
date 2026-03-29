@@ -103,6 +103,11 @@ def parse_library_spec(value: str) -> Dict[str, str]:
     path = Path(value)
     if path.exists():
         return {"kind": "library", "value": str(path.resolve())}
+    if value.endswith(".so") or "/" in value:
+        raise FileNotFoundError(
+            f"Endpoint path does not exist: {value}. Build the extension first "
+            "and pass the actual .so path."
+        )
     return {"kind": "module", "value": value}
 
 
@@ -277,6 +282,18 @@ def run_worker_subprocess(config: Dict[str, Any]) -> Dict[str, Any]:
             capture_output=True,
             text=True,
         )
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.strip()
+        stdout = exc.stdout.strip()
+        message = (
+            f"Worker subprocess failed for endpoint "
+            f"{config['endpoint_name']!r}.\n"
+        )
+        if stdout:
+            message += f"\nWorker stdout:\n{stdout}\n"
+        if stderr:
+            message += f"\nWorker stderr:\n{stderr}\n"
+        raise RuntimeError(message) from exc
     finally:
         os.unlink(config_path)
 
